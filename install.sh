@@ -1,34 +1,30 @@
 #!/bin/sh
-# --- [ HPCC: 终极稳健版安装脚本 ] ---
+# --- [ HPCC: 积木指挥官本地安装版 ] ---
 
 RED='\033[31m'; GREEN='\033[32m'; BLUE='\033[34m'; NC='\033[0m'
 log() { echo -e "${GREEN}[安装]${NC} $1"; }
 
-# 1. 强制环境初始化
+# 1. 环境清理
 [ -d "/etc/hpcc" ] && rm -rf /etc/hpcc
 mkdir -p /etc/hpcc/bin /etc/hpcc/templates/nodes
 
-# 2. 静态仓库坐标
+# 2. 静态仓库坐标 (已锁定你的仓库)
 GH_USER="Vonzhen"
 GH_REPO="homeproxy_config"
 GH_BRANCH="master"
 GH_BASE_URL="https://raw.githubusercontent.com/$GH_USER/$GH_REPO/$GH_BRANCH"
 
-# 3. 交互获取变量 (修复管道输入问题)
+# 3. 交互获取变量 (本地运行模式)
 log "开始配置通信指挥部..."
 echo "----------------------------------------------"
-
-# 强制将标准输入重定向回终端，确保 read 能停下来
-exec < /dev/tty
-
-printf "请输入 Cloudflare Worker 域名: "; read -r CF_DOMAIN
-printf "请输入 Worker Auth Token: "; read -r CF_TOKEN
-printf "请输入 Telegram Bot Token: "; read -r TG_TOKEN
-printf "请输入 Telegram Chat ID: "; read -r TG_ID
-
+# 使用 read -p 是最标准的方式
+read -p "请输入 Cloudflare Worker 域名: " CF_DOMAIN
+read -p "请输入 Worker Auth Token: " CF_TOKEN
+read -p "请输入 Telegram Bot Token: " TG_TOKEN
+read -p "请输入 Telegram Chat ID: " TG_ID
 echo "----------------------------------------------"
 
-# 4. 安全写入环境变量 (使用单引号防止 Token 内特殊字符被转义)
+# 4. 安全写入环境变量
 CONF_FILE="/etc/hpcc/env.conf"
 {
     echo "GH_USER='$GH_USER'"
@@ -49,7 +45,6 @@ SCRIPTS="hp_download.sh hp_config_update.sh hp_rollback.sh hpcc"
 smart_download() {
     local name=$1
     local local_path="/etc/hpcc/bin/$name"
-    # 尝试多种路径可能 (带或不带 .sh)
     wget -qO "$local_path" "$GH_RAW_URL/bin/$name" || \
     wget -qO "$local_path" "$GH_RAW_URL/bin/$name.sh"
     
@@ -63,14 +58,13 @@ smart_download() {
 for s in $SCRIPTS; do
     log "正在拉取: $s ..."
     if ! smart_download "$s"; then
-        echo -e "${RED}❌ $s 下载失败！请检查仓库 bin/ 目录${NC}"
+        echo -e "${RED}❌ $s 下载失败！${NC}"
         exit 1
     fi
 done
 
 # 6. 系统挂载
 ln -sf /etc/hpcc/bin/hpcc /usr/bin/hpcc
-# 重新挂载定时任务，确保不重复
 (crontab -l 2>/dev/null | grep -v "hpcc") | crontab -
 (crontab -l 2>/dev/null; echo "0 4 * * * /usr/bin/hpcc sync") | crontab -
 
