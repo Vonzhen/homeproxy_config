@@ -20,21 +20,30 @@ if [ -f "$CONF_FILE" ]; then
     source "$CONF_FILE"
     log "🏮 检获现有领地情报，【$LOCATION】战区正在静默整编..."
 else
+    # 全新安装仪式
     log "领主大人，未发现旧有密令，请下达领地情报参数..."
     echo "------------------------------------------------"
     exec < /dev/tty
 
+    # 部署位置提示
     echo -e "${BLUE}1. 领地坐标选择${NC}"
     printf "   [1] 家  [2] 公司 (默认 1): "; read -r LOC_CHOICE
     [ "$LOC_CHOICE" = "2" ] && LOCATION="公司" || LOCATION="家"
 
-    echo -e "\n${BLUE}2. 渡鸦联络域名 (Worker)${NC}"
+    # Worker 域名提示
+    echo -e "\n${BLUE}2. 渡鸦联络域名 (Cloudflare Worker)${NC}"
+    echo -e "   示例: ${GREEN}sub.name.workers.dev${NC}"
     printf "   请输入: "; read -r CF_DOMAIN
+
+    # Token 提示
     echo -e "\n${BLUE}3. 密语验证 Token${NC}"
     printf "   请输入: "; read -r CF_TOKEN
-    echo -e "\n${BLUE}4. 战报推送 (TG 可选)${NC}"
-    printf "   请输入 Bot Token (跳过请回车): "; read -r TG_TOKEN
-    printf "   请输入 Chat ID (跳过请回车):   "; read -r TG_ID
+
+    # TG 提示
+    echo -e "\n${BLUE}4. 战报推送 (Telegram 可选)${NC}"
+    echo -e "   如果不需要通知，请${YELLOW}直接按回车跳过${NC}"
+    printf "   请输入 Bot Token: "; read -r TG_TOKEN
+    printf "   请输入 Chat ID:   "; read -r TG_ID
     echo "------------------------------------------------"
 
     # 熔炼配置文件 (仅在初次安装时写入)
@@ -77,6 +86,7 @@ echo -e "${BLUE}   HPCC 战略堡垒整编完毕！${NC}"
 echo -e "----------------------------------------------"
 echo -e " 领主：${YELLOW}$GH_USER${NC}"
 echo -e " 坐标：${YELLOW}【$LOCATION】${NC}"
+echo -e " 状态：${GREEN}无面者哨兵已在暗处就位。${NC}"
 echo -e " 指引：输入 ${GREEN}'hpcc'${NC} 进入议事厅"
 echo -e "${GREEN}==============================================${NC}\n"
 
