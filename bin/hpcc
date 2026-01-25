@@ -27,11 +27,11 @@ while true; do
     case $choice in
         1)
             echo -e "\n\033[32m[指令]\033[0m 正在重新锻造积木城墙..."
-            sh /etc/hpcc/bin/hp_download.sh && sh /etc/hpcc/bin/hp_config_update.sh
+            sh /etc/hpcc/bin/hp_download && sh /etc/hpcc/bin/hp_config_update
             echo -e "\n锻造完成，回车返回议事厅..."; read ;;
         2)
             echo -e "\n\033[31m[紧急]\033[0m 正在执行战略后撤..."
-            sh /etc/hpcc/bin/hp_rollback.sh
+            sh /etc/hpcc/bin/hp_rollback
             echo -e "\n已退回旧部，回车返回议事厅..."; read ;;
         3)
             echo -e "\n\033[33m[简报]\033[0m"
