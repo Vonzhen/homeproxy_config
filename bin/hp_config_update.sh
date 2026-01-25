@@ -1,4 +1,5 @@
 #!/bin/sh
+# --- [ HPCC: 积木指挥官 - 维斯特洛熔炼炉 ] ---
 source /etc/hpcc/env.conf
 
 TMP_CONF="/tmp/homeproxy.new"
@@ -6,31 +7,29 @@ JSON_FILE="/tmp/nodes.json"
 SNIP_DIR="/tmp/hpcc_snippets"
 REGIONS="HK SG TW JP US"
 
-# [情报模块] 俏皮式 TG 通报
+# [情报模块] 权游式战报通报
 send_tg() {
     [ -z "$TG_BOT_TOKEN" ] || [ -z "$TG_CHAT_ID" ] && return
     
-    # 战报数据：机场分布情况
     local stats=$(cat /tmp/hp_counts | tr '\n' ' ' | sed 's/=$//')
-    
-    # 随机俏皮话弹药库
     local rand=$(hexdump -n 1 -e '/1 "%u"' /dev/urandom)
+    
     case $((rand % 6)) in
-        0) msg="报告指挥官，【$LOCATION】的网络积木已重新搭好，丝滑度+100%！🚀" ;;
-        1) msg="检测到信号变动，【$LOCATION】已完成位面平移。当前阵型：$stats 🛰️" ;;
-        2) msg="嘿咻！【$LOCATION】的节点已经洗过澡换好衣服了，请指示！🛁" ;;
-        3) msg="别看了，【$LOCATION】的配置已经自己进化了，现在的我强得可怕。💪" ;;
-        4) msg="指挥官请放心，【$LOCATION】的摸鱼环境已通过 0.1ms 级加固。🐟" ;;
-        5) msg="【$LOCATION】的节点已全部归队，正以 $stats 的姿态列阵待命！🫡" ;;
+        0) msg="🕯️ 报告领主，【$LOCATION】城墙已加固。瓦雷利亚钢已熔炼完毕，丝滑度更胜往昔！" ;;
+        1) msg="🦅 渡鸦传信：【$LOCATION】已完成阵型变换。当前守军分布：$stats" ;;
+        2) msg="🍷 领主大人，【$LOCATION】的守卫已换上新甲，列阵待命，请下达攻坚指令！" ;;
+        3) msg="❄️ 凛冬将至，但【$LOCATION】的炉火正旺。配置已自我进化，现在的守御坚不可摧。" ;;
+        4) msg="🗡️ 领主请放心，【$LOCATION】的暗哨已扫清障碍，0.1ms 级防御已部署完毕。" ;;
+        5) msg="🐉 龙焰重铸！【$LOCATION】所有积木已归位，正以 $stats 之势封锁边境！" ;;
     esac
 
     curl -sk -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
         -d "chat_id=$TG_CHAT_ID" -d "text=$msg" > /dev/null 2>&1 &
 }
 
-log() { echo -e "\033[32m[UPDATE]\033[0m $1"; }
+log() { echo -e "\033[32m[熔炼]\033[0m $1"; }
 
-# 1. 映射算法
+# 1. 映射算法 (意图平移)
 map_logic() {
     local val=$(echo "$1" | tr -d "' \t\r\n")
     [ "$val" = "direct-out" ] || [ "$val" = "blackhole-out" ] && echo "$val" && return
@@ -50,14 +49,14 @@ if [ "$1" = "--map" ]; then map_logic "$2"; exit 0; fi
 
 # 2. 资源获取
 mkdir -p $SNIP_DIR
-log "📥 同步底座与蓝图..."
+log "📥 同步领地蓝图..."
 wget -qO "$TMP_CONF.base" "$GH_RAW_URL/templates/hp_base.uci"
 for type in vless trojan hysteria2 shadowsocks; do
     wget -qO "$SNIP_DIR/$type.snippet" "$GH_RAW_URL/templates/nodes/$type.snippet"
 done
 
 # 3. 统计分布
-log "📊 统计机场分布..."
+log "📊 检阅守军分布..."
 JSON_DATA=$(cat $JSON_FILE | jq -c '.outbounds')
 AIRPORTS=$(echo "$JSON_DATA" | jq -r '.[] | .tag' | awk '{print $2}' | awk -F'-' '{print $1}' | awk '!x[$0]++')
 
@@ -72,7 +71,7 @@ for reg in $REGIONS; do
 done
 
 # 4. 意图平移
-log "🏗️ 执行意图平移..."
+log "🏗️ 重塑战术意图..."
 awk -v script="$0" '{
     if ($0 ~ /option outbound/) {
         if (match($0, /\047[^\047]+\047/)) {
@@ -86,7 +85,7 @@ awk -v script="$0" '{
 }' "$TMP_CONF.base" > "$TMP_CONF"
 
 # 5. 生成策略组
-log "🧵 缝合策略组..."
+log "🧵 缝合防御序列..."
 for reg in $REGIONS; do
     idx=1; lower_reg=$(echo $reg | tr 'A-Z' 'a-z')
     case "$reg" in "HK") flag="🇭🇰" ;; "SG") flag="🇸🇬" ;; "TW") flag="🇹🇼" ;; "JP") flag="🇯🇵" ;; "US") flag="🇺🇸" ;; esac
@@ -113,7 +112,7 @@ for reg in $REGIONS; do
 done
 
 # 6. 生成节点
-log "🎨 注入 Reality 节点..."
+log "🎨 注入瓦雷利亚节点..."
 safe_replace() { awk -v p="{{$1}}" -v r="$2" '{gsub(p,r);print}' "$3" > "$3.tmp" && mv "$3.tmp" "$3"; }
 
 echo "$JSON_DATA" | jq -c '.[]' | while read -r row; do
@@ -162,6 +161,6 @@ if [ -s "$TMP_CONF" ]; then
     mv "$TMP_CONF" /etc/config/homeproxy
     uci commit homeproxy
     /etc/init.d/homeproxy restart
-    log "📡 发送战报..."
+    log "📡 发送领主捷报..."
     send_tg
 fi
