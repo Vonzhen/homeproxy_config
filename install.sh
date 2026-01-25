@@ -1,45 +1,50 @@
 #!/bin/sh
-# --- [ HPCC: 积木指挥官哨兵完全体 - 交互优化版 ] ---
+# --- [ Homeproxy 配置文件自动部署脚本 ] ---
 
 RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'; BLUE='\033[34m'; NC='\033[0m'
 log() { echo -e "${GREEN}[安装]${NC} $1"; }
-warn() { echo -e "${YELLOW}[注意]${NC} $1"; }
 
-# 1. 环境初始化（强制清理旧环境，确保纯净安装）
 [ -d "/etc/hpcc" ] && rm -rf /etc/hpcc
 mkdir -p /etc/hpcc/bin /etc/hpcc/templates/nodes
 
-# 2. 仓库坐标
-GH_USER="Vonzhen"
-GH_REPO="homeproxy_config"
-GH_BRANCH="master"
+# --- 自动解析 GitHub 坐标逻辑 ---
+DEFAULT_USER="Vonzhen"; DEFAULT_REPO="homeproxy_config"; DEFAULT_BRANCH="master"
+
+# 捕获 wget 进程中的 URL
+RAW_URL=$(ps -w | grep wget | grep "install.sh" | grep -v grep | awk '{for(i=1;i<=NF;i++) if($i ~ /githubusercontent\.com/) print $i}' | head -n 1)
+
+if [ -n "$RAW_URL" ]; then
+    GH_USER=$(echo "$RAW_URL" | cut -d'/' -f4)
+    GH_REPO=$(echo "$RAW_URL" | cut -d'/' -f5)
+    GH_BRANCH=$(echo "$RAW_URL" | cut -d'/' -f6)
+    log "📡 自动识别仓库: $GH_USER/$GH_REPO ($GH_BRANCH)"
+else
+    GH_USER="$DEFAULT_USER"; GH_REPO="$DEFAULT_REPO"; GH_BRANCH="$DEFAULT_BRANCH"
+    log "🔔 使用预设仓库: $GH_USER/$GH_REPO"
+fi
 GH_BASE_URL="https://raw.githubusercontent.com/$GH_USER/$GH_REPO/$GH_BRANCH"
+# ------------------------------
 
-# 3. 引导式交互获取变量
-log "开始配置指挥系统情报参数..."
+log "开始配置系统情报参数..."
 echo "------------------------------------------------"
-
-# 强制重定向输入流以支持管道安装模式
 exec < /dev/tty
 
-# 域名格式引导
-echo -e "${BLUE}1. Cloudflare Worker 域名${NC}"
-echo -e "   格式示例: ${GREEN}sub.yourname.workers.dev${NC} (不要带 http://)"
+echo -e "${BLUE}1. 部署位置选择${NC}"
+printf "   [1] 家  [2] 公司 (默认 1): "; read -r LOC_CHOICE
+[ "$LOC_CHOICE" = "2" ] && LOCATION="公司" || LOCATION="家"
+
+echo -e "\n${BLUE}2. Cloudflare Worker 域名${NC}"
+echo -e "   示例: ${GREEN}sub.name.workers.dev${NC}"
 printf "   请输入: "; read -r CF_DOMAIN
 
-# Token 引导
-echo -e "\n${BLUE}2. Worker 验证 Token${NC}"
+echo -e "\n${BLUE}3. Worker 验证 Token${NC}"
 printf "   请输入: "; read -r CF_TOKEN
 
-# TG 通知引导 (可选)
-echo -e "\n${BLUE}3. Telegram 通知推送 (可选)${NC}"
-echo -e "   如果不需要通知，请${YELLOW}直接按回车跳过${NC}"
-printf "   请输入 Bot Token: "; read -r TG_TOKEN
-printf "   请输入 Chat ID:   "; read -r TG_ID
+echo -e "\n${BLUE}4. Telegram 通知 (可选)${NC}"
+printf "   请输入 Bot Token (跳过请回车): "; read -r TG_TOKEN
+printf "   请输入 Chat ID (跳过请回车):   "; read -r TG_ID
+echo "------------------------------------------------"
 
-echo -e "------------------------------------------------"
-
-# 4. 安全写入环境变量
 CONF_FILE="/etc/hpcc/env.conf"
 {
     echo "GH_USER='$GH_USER'"
@@ -49,19 +54,16 @@ CONF_FILE="/etc/hpcc/env.conf"
     echo "CF_TOKEN='$CF_TOKEN'"
     echo "TG_BOT_TOKEN='$TG_TOKEN'"
     echo "TG_CHAT_ID='$TG_ID'"
+    echo "LOCATION='$LOCATION'"
 } > "$CONF_FILE"
 
-# 5. 执行拉取全套组件
 source "$CONF_FILE"
-log "正在从云端拉取全套指挥组件..."
-
-# 核心脚本清单：增加了 hp_watchdog.sh
+log "正在拉取指挥组件..."
 SCRIPTS="hp_download.sh hp_config_update.sh hp_rollback.sh hpcc hp_watchdog.sh"
 
 smart_download() {
     local name=$1
     local local_path="/etc/hpcc/bin/$name"
-    # 尝试直接下载或带 .sh 后缀下载
     wget -qO "$local_path" "$GH_RAW_URL/bin/$name" || wget -qO "$local_path" "$GH_RAW_URL/bin/$name.sh"
     [ -s "$local_path" ] && chmod +x "$local_path" && return 0
     return 1
@@ -69,27 +71,18 @@ smart_download() {
 
 for s in $SCRIPTS; do
     log "同步中: $s ..."
-    if ! smart_download "$s"; then
-        echo -e "${RED}❌ $s 同步失败，请检查仓库 bin/ 目录${NC}"
-        exit 1
-    fi
+    smart_download "$s" || { echo -e "${RED}❌ $s 同步失败${NC}"; exit 1; }
 done
 
-# 6. 系统挂载与哨兵巡逻配置
 ln -sf /etc/hpcc/bin/hpcc /usr/bin/hpcc
-
-log "正在激活【哨兵巡逻模式】(每分钟自动感应云端信号)..."
-# 彻底清理旧任务（包含之前的凌晨4点任务），只挂载哨兵每分钟巡逻
 (crontab -l 2>/dev/null | grep -v "hpcc") | crontab -
 (crontab -l 2>/dev/null; echo "* * * * * /bin/sh /etc/hpcc/bin/hp_watchdog.sh") | crontab -
 
 echo -e "\n${GREEN}==============================================${NC}"
 echo -e "${BLUE}   HPCC 哨兵系统部署完毕！${NC}"
 echo -e "----------------------------------------------"
-echo -e " 指令集已就绪，当前状态：${GREEN}哨兵自感应中${NC}"
-echo -e " 云端信号 (Tick) 只要改变，家里就会在 60 秒内自动同步。"
-[ -z "$TG_TOKEN" ] && echo -e " 提示: ${YELLOW}未配置 TG 通知，同步将静默执行${NC}"
+echo -e " 来源：${CYAN}$GH_USER/$GH_REPO${NC}"
+echo -e " 地点：${YELLOW}【$LOCATION】${NC}"
+echo -e " 状态：${GREEN}哨兵自感应中${NC}"
 echo -e "${GREEN}==============================================${NC}\n"
-
-# 自动清理临时安装脚本
 rm -f "$0"
