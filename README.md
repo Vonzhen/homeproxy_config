@@ -3,7 +3,7 @@
 
 # HPCC: HomeProxy Config Commander 
 
-HPCC 是一套为 [HomeProxy](https://github.com/immortalwrt/homeproxy) 而配置自动化方案。通过 **Sub-Store (处理)** -> **Cloudflare Worker (中转/触发)** -> **HPCC 哨兵 (同步/重组)** 的完整链路，实现节点配置的动态更新与一键回滚。
+HPCC 是一套 [HomeProxy](https://github.com/immortalwrt/homeproxy) 的配置自动化方案。通过 **Sub-Store (处理)** -> **Cloudflare Worker (中转/触发)** -> **HPCC 哨兵 (同步/重组)** 的完整链路，实现节点配置的动态更新与一键回滚。
 
 ### ⚙️ 项目操作流程
 
