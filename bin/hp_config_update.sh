@@ -1,5 +1,4 @@
 #!/bin/sh
-# --- HomeProxy 指挥官：终极整合版 (含 TG 通知 + Reality 补全) ---
 source /etc/hpcc/env.conf
 
 TMP_CONF="/tmp/homeproxy.new"
@@ -7,20 +6,31 @@ JSON_FILE="/tmp/nodes.json"
 SNIP_DIR="/tmp/hpcc_snippets"
 REGIONS="HK SG TW JP US"
 
-# [情报模块] Telegram 发送函数
+# [情报模块] 俏皮式 TG 通报
 send_tg() {
-    # 检查变量是否存在，不存在则跳过
     [ -z "$TG_BOT_TOKEN" ] || [ -z "$TG_CHAT_ID" ] && return
-    local msg="【指挥官】✅ $1"
-    # 使用 curl 异步发送，避免网络波动卡住主脚本
+    
+    # 战报数据：机场分布情况
+    local stats=$(cat /tmp/hp_counts | tr '\n' ' ' | sed 's/=$//')
+    
+    # 随机俏皮话弹药库
+    local rand=$(hexdump -n 1 -e '/1 "%u"' /dev/urandom)
+    case $((rand % 6)) in
+        0) msg="报告指挥官，【$LOCATION】的网络积木已重新搭好，丝滑度+100%！🚀" ;;
+        1) msg="检测到信号变动，【$LOCATION】已完成位面平移。当前阵型：$stats 🛰️" ;;
+        2) msg="嘿咻！【$LOCATION】的节点已经洗过澡换好衣服了，请指示！🛁" ;;
+        3) msg="别看了，【$LOCATION】的配置已经自己进化了，现在的我强得可怕。💪" ;;
+        4) msg="指挥官请放心，【$LOCATION】的摸鱼环境已通过 0.1ms 级加固。🐟" ;;
+        5) msg="【$LOCATION】的节点已全部归队，正以 $stats 的姿态列阵待命！🫡" ;;
+    esac
+
     curl -sk -X POST "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" \
-        -d "chat_id=$TG_CHAT_ID" \
-        -d "text=$msg" > /dev/null 2>&1 &
+        -d "chat_id=$TG_CHAT_ID" -d "text=$msg" > /dev/null 2>&1 &
 }
 
 log() { echo -e "\033[32m[UPDATE]\033[0m $1"; }
 
-# 1. 意图平移逻辑 (原始随机算法)
+# 1. 映射算法
 map_logic() {
     local val=$(echo "$1" | tr -d "' \t\r\n")
     [ "$val" = "direct-out" ] || [ "$val" = "blackhole-out" ] && echo "$val" && return
@@ -40,13 +50,13 @@ if [ "$1" = "--map" ]; then map_logic "$2"; exit 0; fi
 
 # 2. 资源获取
 mkdir -p $SNIP_DIR
-log "📥 正在同步云端底座与积木蓝图..."
+log "📥 同步底座与蓝图..."
 wget -qO "$TMP_CONF.base" "$GH_RAW_URL/templates/hp_base.uci"
 for type in vless trojan hysteria2 shadowsocks; do
     wget -qO "$SNIP_DIR/$type.snippet" "$GH_RAW_URL/templates/nodes/$type.snippet"
 done
 
-# 3. 统计分布 (按 JSON 出现顺序)
+# 3. 统计分布
 log "📊 统计机场分布..."
 JSON_DATA=$(cat $JSON_FILE | jq -c '.outbounds')
 AIRPORTS=$(echo "$JSON_DATA" | jq -r '.[] | .tag' | awk '{print $2}' | awk -F'-' '{print $1}' | awk '!x[$0]++')
@@ -61,10 +71,9 @@ for reg in $REGIONS; do
     echo "$lower_reg=$count" >> /tmp/hp_counts
 done
 
-# 4. 重构底座意图
+# 4. 意图平移
 log "🏗️ 执行意图平移..."
-awk -v script="$0" '
-{
+awk -v script="$0" '{
     if ($0 ~ /option outbound/) {
         if (match($0, /\047[^\047]+\047/)) {
             old_v = substr($0, RSTART+1, RLENGTH-2);
@@ -76,8 +85,8 @@ awk -v script="$0" '
     print $0
 }' "$TMP_CONF.base" > "$TMP_CONF"
 
-# 5. 生成策略组 (垂直隔离版)
-log "🧵 生成策略组..."
+# 5. 生成策略组
+log "🧵 缝合策略组..."
 for reg in $REGIONS; do
     idx=1; lower_reg=$(echo $reg | tr 'A-Z' 'a-z')
     case "$reg" in "HK") flag="🇭🇰" ;; "SG") flag="🇸🇬" ;; "TW") flag="🇹🇼" ;; "JP") flag="🇯🇵" ;; "US") flag="🇺🇸" ;; esac
@@ -103,8 +112,8 @@ for reg in $REGIONS; do
     done
 done
 
-# 6. 生成节点 (蓝图增强 + 格式对齐)
-log "🎨 正在注入节点..."
+# 6. 生成节点
+log "🎨 注入 Reality 节点..."
 safe_replace() { awk -v p="{{$1}}" -v r="$2" '{gsub(p,r);print}' "$3" > "$3.tmp" && mv "$3.tmp" "$3"; }
 
 echo "$JSON_DATA" | jq -c '.[]' | while read -r row; do
@@ -112,18 +121,13 @@ echo "$JSON_DATA" | jq -c '.[]' | while read -r row; do
     SNIP="$SNIP_DIR/$TYPE.snippet"
     if [ -f "$SNIP" ]; then
         ITEM_TMP="/tmp/node_$ID.tmp"; cp "$SNIP" "$ITEM_TMP"
-        
         RAW_UTLS=$(echo "$row" | jq -r '.tls.utls // empty')
-        if echo "$RAW_UTLS" | grep -q "{"; then
-            UTLS_VAL=$(echo "$RAW_UTLS" | jq -r '.fingerprint // "chrome"')
-        else
-            UTLS_VAL="${RAW_UTLS:-chrome}"
-        fi
-        [ "$UTLS_VAL" = "null" ] && UTLS_VAL="chrome"
-
+        [ "$RAW_UTLS" = "null" ] && UTLS_VAL="chrome" || UTLS_VAL=$(echo "$RAW_UTLS" | jq -r '.fingerprint // "chrome"')
         [ "$(echo "$row" | jq -r '.tls.insecure // false')" = "true" ] && INSECURE="1" || INSECURE="0"
         [ "$(echo "$row" | jq -r '.tls.enabled // true')" = "true" ] && TLS="1" || TLS="0"
         FLOW=$(echo "$row" | jq -r '.flow // empty')
+        PK=$(echo "$row" | jq -r '.tls.reality.public_key // empty')
+        SID=$(echo "$row" | jq -r '.tls.reality.short_id // empty')
 
         safe_replace "ID" "$ID" "$ITEM_TMP"
         safe_replace "LABEL" "$LABEL" "$ITEM_TMP"
@@ -138,17 +142,12 @@ echo "$JSON_DATA" | jq -c '.[]' | while read -r row; do
         safe_replace "UTLS" "$UTLS_VAL" "$ITEM_TMP"
         safe_replace "FLOW" "$FLOW" "$ITEM_TMP"
         
-        PK=$(echo "$row" | jq -r '.tls.reality.public_key // empty')
-        SID=$(echo "$row" | jq -r '.tls.reality.short_id // empty')
-        
         if [ -n "$PK" ] && [ "$PK" != "null" ]; then
             safe_replace "REALITY_ENABLE" "1" "$ITEM_TMP"
             safe_replace "REALITY_PK" "$PK" "$ITEM_TMP"
             safe_replace "REALITY_SID" "$SID" "$ITEM_TMP"
         else
             safe_replace "REALITY_ENABLE" "0" "$ITEM_TMP"
-            safe_replace "REALITY_PK" "" "$ITEM_TMP"
-            safe_replace "REALITY_SID" "" "$ITEM_TMP"
         fi
 
         echo "" >> "$TMP_CONF"
@@ -157,17 +156,12 @@ echo "$JSON_DATA" | jq -c '.[]' | while read -r row; do
     fi
 done
 
-log "✅ 模拟生成完成：$TMP_CONF"
-
-# 7. [应用与通知] 最终阶段
+# 7. 应用与通报
 if [ -s "$TMP_CONF" ]; then
-    # 备份并替换正式配置 (这一步建议放在 sync 脚本中，或者在这里直接处理)
     cp /etc/config/homeproxy /etc/config/homeproxy.bak
     mv "$TMP_CONF" /etc/config/homeproxy
     uci commit homeproxy
-    
-    # 构造简报信息
-    REPORT="节点重组完成。机场分布：$(cat /tmp/hp_counts | tr '\n' ' ')"
-    log "📡 发送 TG 战报..."
-    send_tg "$REPORT"
+    /etc/init.d/homeproxy restart
+    log "📡 发送战报..."
+    send_tg
 fi
