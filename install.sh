@@ -66,7 +66,7 @@ CONF_FILE="/etc/hpcc/env.conf"
 # 5. 集结积木纵队 (拉取组件)
 source "$CONF_FILE"
 log "正在集结您的积木纵队..."
-SCRIPTS="hp_download.sh hp_config_update.sh hp_rollback.sh hpcc hp_watchdog.sh"
+SCRIPTS="hp_download hp_config_update hp_rollback hpcc hp_watchdog"
 
 smart_download() {
     local name=$1
