@@ -9,19 +9,10 @@ CONF_FILE="/etc/hpcc/env.conf"
 [ -d "/etc/hpcc/bin" ] && rm -rf /etc/hpcc/bin
 mkdir -p /etc/hpcc/bin /etc/hpcc/templates/nodes
 
-# 2. 自动识别家族纹章 (GitHub 仓库坐标)
-DEFAULT_USER="Vonzhen"; DEFAULT_REPO="homeproxy_config"; DEFAULT_BRANCH="master"
-RAW_URL=$(ps -w | grep wget | grep "install.sh" | grep -v grep | awk '{for(i=1;i<=NF;i++) if($i ~ /githubusercontent\.com/) print $i}' | head -n 1)
-
-if [ -n "$RAW_URL" ]; then
-    GH_USER=$(echo "$RAW_URL" | cut -d'/' -f4)
-    GH_REPO=$(echo "$RAW_URL" | cut -d'/' -f5)
-    GH_BRANCH=$(echo "$RAW_URL" | cut -d'/' -f6)
-    log "📡 自动识别仓库: $GH_USER/$GH_REPO ($GH_BRANCH)"
-else
-    GH_USER="$DEFAULT_USER"; GH_REPO="$DEFAULT_REPO"; GH_BRANCH="$DEFAULT_BRANCH"
-    log "🔔 使用预设仓库: $GH_USER/$GH_REPO"
-fi
+# 2. 锁定家族纹章 (GitHub 仓库坐标)
+GH_USER="Vonzhen"
+GH_REPO="homeproxy_config"
+GH_BRANCH="master"
 GH_BASE_URL="https://raw.githubusercontent.com/$GH_USER/$GH_REPO/$GH_BRANCH"
 
 # 3. 智能情报感应：检查是否存在旧有领地密令
@@ -29,7 +20,6 @@ if [ -f "$CONF_FILE" ]; then
     source "$CONF_FILE"
     log "🏮 检获现有领地情报，【$LOCATION】战区正在静默整编..."
 else
-    # 全新安装仪式
     log "领主大人，未发现旧有密令，请下达领地情报参数..."
     echo "------------------------------------------------"
     exec < /dev/tty
@@ -38,13 +28,11 @@ else
     printf "   [1] 家  [2] 公司 (默认 1): "; read -r LOC_CHOICE
     [ "$LOC_CHOICE" = "2" ] && LOCATION="公司" || LOCATION="家"
 
-    echo -e "\n${BLUE}2. 渡鸦联络域名 (Cloudflare Worker)${NC}"
+    echo -e "\n${BLUE}2. 渡鸦联络域名 (Worker)${NC}"
     printf "   请输入: "; read -r CF_DOMAIN
-
     echo -e "\n${BLUE}3. 密语验证 Token${NC}"
     printf "   请输入: "; read -r CF_TOKEN
-
-    echo -e "\n${BLUE}4. 战报推送 (Telegram 可选)${NC}"
+    echo -e "\n${BLUE}4. 战报推送 (TG 可选)${NC}"
     printf "   请输入 Bot Token (跳过请回车): "; read -r TG_TOKEN
     printf "   请输入 Chat ID (跳过请回车):   "; read -r TG_ID
     echo "------------------------------------------------"
@@ -69,7 +57,7 @@ SCRIPTS="hp_download hp_config_update hp_rollback hpcc hp_watchdog"
 smart_download() {
     local name=$1
     local local_path="/etc/hpcc/bin/$name"
-    wget -qO "$local_path" "$GH_RAW_URL/bin/$name" || wget -qO "$local_path" "$GH_RAW_URL/bin/$name.sh"
+    wget -qO "$local_path" "$GH_BASE_URL/bin/$name" || wget -qO "$local_path" "$GH_BASE_URL/bin/$name.sh"
     [ -s "$local_path" ] && chmod +x "$local_path" && return 0
     return 1
 }
@@ -89,7 +77,7 @@ echo -e "${BLUE}   HPCC 战略堡垒整编完毕！${NC}"
 echo -e "----------------------------------------------"
 echo -e " 领主：${YELLOW}$GH_USER${NC}"
 echo -e " 坐标：${YELLOW}【$LOCATION】${NC}"
-echo -e " 状态：${GREEN}守军已更新，密令已延续。${NC}"
+echo -e " 指引：输入 ${GREEN}'hpcc'${NC} 进入议事厅"
 echo -e "${GREEN}==============================================${NC}\n"
 
 rm -f "$0"
