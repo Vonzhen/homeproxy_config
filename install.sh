@@ -1,21 +1,21 @@
 #!/bin/sh
-# --- [ HPCC: 积木指挥官哨兵完全体 - 终极安装脚本 ] ---
+# --- [ HPCC: 积木指挥官哨兵完全体 - 交互优化版 ] ---
 
 RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'; BLUE='\033[34m'; NC='\033[0m'
 log() { echo -e "${GREEN}[安装]${NC} $1"; }
 warn() { echo -e "${YELLOW}[注意]${NC} $1"; }
 
-# 1. 环境初始化（打扫卫生）
+# 1. 环境初始化（强制清理旧环境，确保纯净安装）
 [ -d "/etc/hpcc" ] && rm -rf /etc/hpcc
 mkdir -p /etc/hpcc/bin /etc/hpcc/templates/nodes
 
-# 2. 静态仓库坐标
+# 2. 仓库坐标
 GH_USER="Vonzhen"
 GH_REPO="homeproxy_config"
 GH_BRANCH="master"
 GH_BASE_URL="https://raw.githubusercontent.com/$GH_USER/$GH_REPO/$GH_BRANCH"
 
-# 3. 引导式交互获取变量（带格式提示，支持管道模式）
+# 3. 引导式交互获取变量
 log "开始配置指挥系统情报参数..."
 echo "------------------------------------------------"
 
@@ -51,16 +51,17 @@ CONF_FILE="/etc/hpcc/env.conf"
     echo "TG_CHAT_ID='$TG_ID'"
 } > "$CONF_FILE"
 
-# 5. 验证并同步所有脚本（包含哨兵）
+# 5. 执行拉取全套组件
 source "$CONF_FILE"
 log "正在从云端拉取全套指挥组件..."
 
-# 核心脚本清单：增加 hp_watchdog.sh
+# 核心脚本清单：增加了 hp_watchdog.sh
 SCRIPTS="hp_download.sh hp_config_update.sh hp_rollback.sh hpcc hp_watchdog.sh"
 
 smart_download() {
     local name=$1
     local local_path="/etc/hpcc/bin/$name"
+    # 尝试直接下载或带 .sh 后缀下载
     wget -qO "$local_path" "$GH_RAW_URL/bin/$name" || wget -qO "$local_path" "$GH_RAW_URL/bin/$name.sh"
     [ -s "$local_path" ] && chmod +x "$local_path" && return 0
     return 1
@@ -77,18 +78,18 @@ done
 # 6. 系统挂载与哨兵巡逻配置
 ln -sf /etc/hpcc/bin/hpcc /usr/bin/hpcc
 
-log "正在激活【哨兵巡逻模式】(每分钟自感应云端更新)..."
-# 清理旧任务（包括凌晨4点的），只挂载哨兵
+log "正在激活【哨兵巡逻模式】(每分钟自动感应云端信号)..."
+# 彻底清理旧任务（包含之前的凌晨4点任务），只挂载哨兵每分钟巡逻
 (crontab -l 2>/dev/null | grep -v "hpcc") | crontab -
 (crontab -l 2>/dev/null; echo "* * * * * /bin/sh /etc/hpcc/bin/hp_watchdog.sh") | crontab -
 
 echo -e "\n${GREEN}==============================================${NC}"
 echo -e "${BLUE}   HPCC 哨兵系统部署完毕！${NC}"
 echo -e "----------------------------------------------"
-echo -e " 指令集已就绪，当前状态：${GREEN}哨兵监控中${NC}"
-echo -e " 云端 Tick 一变，家里自动同步。"
+echo -e " 指令集已就绪，当前状态：${GREEN}哨兵自感应中${NC}"
+echo -e " 云端信号 (Tick) 只要改变，家里就会在 60 秒内自动同步。"
 [ -z "$TG_TOKEN" ] && echo -e " 提示: ${YELLOW}未配置 TG 通知，同步将静默执行${NC}"
 echo -e "${GREEN}==============================================${NC}\n"
 
-# 自动清理临时安装文件
+# 自动清理临时安装脚本
 rm -f "$0"
